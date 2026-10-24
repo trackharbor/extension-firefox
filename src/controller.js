@@ -135,5 +135,5 @@ export function createController({ browser, writeClipboard, timers }) {
     observersReady = false;
   }
 
-  return { start, getResult: () => result === null ? null : { ...result } };
+  return { start, getResult: () => result === null ? null : { ...result, complete: active === null } };
 }

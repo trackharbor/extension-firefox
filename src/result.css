@@ -1,0 +1,10 @@
+:root { color-scheme: light dark; font: 15px/1.5 system-ui, sans-serif; }
+body { margin: 0; }
+main { padding: 22px 26px; }
+.brand { font-size: 11px; letter-spacing: .12em; opacity: .65; margin: 0; }
+h1 { font-size: 26px; margin: 10px 0; }
+h1[data-ok="true"] { color: light-dark(#08763d, #67e8a3); }
+h1[data-ok="false"] { color: light-dark(#b42318, #ff938a); }
+#message { overflow-wrap: anywhere; }
+button { font: inherit; padding: 7px 18px; border-radius: 7px; cursor: pointer; }
+button:focus-visible { outline: 3px solid #248bff; outline-offset: 3px; }

@@ -235,3 +235,13 @@ test('late tab creation after timeout is cleaned up without navigation', async (
   safeResult(f, /60 секунд/);
   assert.deepEqual(f.calls.updated, []); assert.deepEqual(f.calls.removed, [17]);
 });
+
+test('result stays pending until cleanup finishes, then exposes a late close error', async () => {
+  const removal = deferred();
+  const f = fixture({ remove: async () => { await removal.promise; throw Error('PRIVATE_ERROR'); } });
+  await f.controller.start(); f.request(); await flush();
+  assert.equal(f.controller.getResult().complete, false);
+  removal.resolve(); await flush();
+  assert.equal(f.controller.getResult().complete, true);
+  safeResult(f, /закрыть вкладку/);
+});

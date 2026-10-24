@@ -4,5 +4,11 @@
   "private": true,
   "type": "module",
   "engines": { "node": ">=22" },
-  "scripts": { "test": "node --test" }
+  "scripts": {
+    "test": "node --test",
+    "lint": "web-ext lint --config web-ext-config.mjs --warnings-as-errors",
+    "prebuild": "npm test && npm run lint",
+    "build": "web-ext build --config web-ext-config.mjs"
+  },
+  "devDependencies": { "web-ext": "10.8.0" }
 }
