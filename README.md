@@ -1,59 +1,59 @@
 # TrackHarbor Spotify Headers · Firefox
 
-Расширение открывает Spotify, находит запрос к
-`https://api-partner.spotify.com/pathfinder/v2/query`, копирует **только**
-`authorization` и `client-token`, показывает окно «всё ок» и закрывает
-созданную вкладку. При ошибке показывает её причину и тоже закрывает вкладку.
-Остальные вкладки не затрагиваются. Запуск — только по нажатию на иконку.
+The extension opens Spotify, detects a request to
+`https://api-partner.spotify.com/pathfinder/v2/query`, copies **only**
+`authorization` and `client-token`, displays a success dialog, and closes
+the tab it created. If an error occurs, it displays the reason and closes the tab.
+Other tabs are not affected. The extension runs only when you click its icon.
 
-Требуется **Firefox Desktop 142+**. Сервер TrackHarbor менять не нужно.
+Requires **Firefox Desktop 142+**. No TrackHarbor server changes are needed.
 
-## Быстрая временная установка (без сборки)
+## Quick temporary installation (no build required)
 
-1. Откройте в Firefox `about:debugging#/runtime/this-firefox`.
-2. Нажмите **«Загрузить временное дополнение…» / Load Temporary Add-on…**.
-3. Выберите `manifest.json` из этой папки.
-4. В меню расширений (значок пазла) найдите **TrackHarbor Spotify Headers**.
-   При желании закрепите его на панели инструментов.
+1. Open `about:debugging#/runtime/this-firefox` in Firefox.
+2. Click **Load Temporary Add-on…**.
+3. Select `manifest.json` from this directory.
+4. Find **TrackHarbor Spotify Headers** in the extensions menu (the puzzle icon).
+   Optionally pin it to the toolbar.
 
-Такая установка действует **до перезапуска Firefox**. После изменения исходников
-нажмите «Перезагрузить» у расширения в `about:debugging`.
+The extension remains installed **until Firefox restarts**. After changing the source,
+click **Reload** for the extension in `about:debugging`.
 
-## Использование
+## Usage
 
-1. Заранее войдите в свой аккаунт на [open.spotify.com](https://open.spotify.com/)
-   в том же профиле Firefox. Обычные и приватные окна имеют разные сессии;
-   используйте обычное окно.
-2. Нажмите иконку расширения. Откроется новая активная вкладка Spotify.
-3. Дождитесь окна результата. В буфере обмена окажется текст:
+1. Sign in to your account at [open.spotify.com](https://open.spotify.com/)
+   using the same Firefox profile. Regular and private windows have separate sessions;
+   use a regular window.
+2. Click the extension icon. A new active Spotify tab opens.
+3. Wait for the result dialog. The clipboard will contain:
 
    ```text
-   authorization: Bearer <ваш токен>
-   client-token: <ваш client-token>
+   authorization: Bearer <your token>
+   client-token: <your client-token>
    ```
 
-4. Откройте авторизацию **Spotify** в TrackHarbor, вставьте весь текст в поле
-   заголовков и сохраните. JSON, кавычки и cookies не нужны.
+4. Open **Spotify** authentication in TrackHarbor, paste the entire text into the
+   headers field, and save. No JSON, quotation marks, or cookies are needed.
 
-«всё ок» означает, что заголовки получены и скопированы. Расширение не проверяет
-их на сервере; при истечении токенов повторите получение.
+The success dialog means the headers were captured and copied. The extension does
+not validate them against the server; capture them again when the tokens expire.
 
-### Ошибки
+### Troubleshooting
 
-- Ожидание ограничено **60 секундами**, после чего вкладка закрывается.
-- Если запрос не появляется, проверьте вход в аккаунт. Пока вкладка открыта,
-  можно перейти в библиотеку или другой раздел Spotify, чтобы вызвать запрос.
-- Запросы без полной корректной пары заголовков пропускаются до тайм-аута.
-- Закрытие созданной вкладки вручную прерывает ожидание.
-- При ошибке буфера обмена копирование не считается успешным.
-- Если открыть окно результата не удалось, вкладка всё равно закрывается;
-  причина доступна при наведении на иконку (значок `!`).
-- Если Firefox не дал закрыть вкладку, расширение сообщит об этом; закройте её вручную.
-- Повторное нажатие во время работы не запускает вторую операцию.
+- The operation times out after **60 seconds**, then closes the tab.
+- If no request appears, check that you are signed in. While the tab is open,
+  you can navigate to your library or another Spotify section to trigger a request.
+- Requests without a complete, valid pair of headers are skipped until the timeout.
+- Manually closing the created tab interrupts the operation.
+- A clipboard error means copying was not successful.
+- If the result dialog cannot be opened, the tab still closes;
+  hover over the extension icon (marked `!`) to see the reason.
+- If Firefox prevents the tab from closing, the extension reports it; close the tab manually.
+- Clicking again while an operation is running does not start another one.
 
-## Сборка и проверки
+## Build and checks
 
-Нужны **Node.js 22+** и npm. Работайте в корне репозитория:
+Requires **Node.js 22+** and npm. Run from the repository root:
 
 ```sh
 npm ci
@@ -62,62 +62,14 @@ npm run lint
 npm run build
 ```
 
-`build` автоматически повторяет тесты и lint перед упаковкой. Артефакт:
+`build` automatically reruns tests and lint before packaging. Output:
 `web-ext-artifacts/trackharbor_spotify_headers-1.0.0.zip`.
-В архив входят готовые файлы расширения; Node.js не нужен для его работы.
-Исходный код не минифицируется и не требует отдельной компиляции.
+The archive contains ready-to-use extension files; Node.js is not required to run it.
+The source is not minified and does not require a separate compilation step.
 
-ZIP можно выбрать для временной установки через `about:debugging`.
-Для этого не требуется подпись Mozilla.
+You can select the ZIP for temporary installation through `about:debugging`.
+No Mozilla signature is required for this.
 
-### Постоянная установка
-
-Обычный Firefox не устанавливает неподписанные расширения постоянно.
-Простого переименования ZIP в XPI **недостаточно**.
-
-Для постоянной установки отправьте собранный ZIP на
-[Mozilla Add-on Developer Hub](https://addons.mozilla.org/developers/)
-для подписи. Можно выбрать **On your own / unlisted**, если публичная публикация
-не нужна. После проверки скачайте подписанный XPI и установите его через
-`about:addons` → шестерёнка → **«Установить дополнение из файла…»**.
-Для собственной публикации используйте свой уникальный ID в
-`browser_specific_settings.gecko.id`. Автоматическая отправка и подпись
-в этот проект не включены.
-
-## Безопасность
-
-- Используйте только для собственного аккаунта или с разрешения владельца.
-- Заголовки дают доступ к Spotify: не отправляйте их другим людям, не включайте
-  в скриншоты, логи и багрепорты. После вставки замените содержимое буфера
-  безопасным текстом. Менеджер истории буфера может сохранить скопированные токены.
-- Расширение **не сохраняет** токены в storage/файлы и **никуда их не отправляет**.
-  Они используются в памяти для копирования и остаются в системном буфере.
-- Доступ только к двум доменам Spotify и записи в буфер. Нет разрешений на
-  чтение буфера, cookies или все сайты. Запросы не изменяются и не блокируются.
-
-## Ручная проверка
-
-Автотесты проверяют контроллер с заглушками Firefox API и формат сервера,
-но не заменяют проверку на реальном аккаунте:
-
-1. Войдите в Spotify, запустите расширение, проверьте окно успеха и закрытие
-   только новой вкладки.
-2. Вставьте результат в окно авторизации TrackHarbor и проверьте подключение.
-3. Повторите запуск и вручную закройте новую вкладку — должно появиться сообщение
-   о прерывании.
-4. Проверьте тайм-аут, если Spotify не отправляет подходящий запрос.
-
-Документация: [webRequest](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webRequest),
-[буфер обмена](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Interact_with_the_clipboard),
-[временная установка](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/),
-[подпись](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/).
-
-### Зависимости сборки
-
-У `web-ext@10.8.0` команда `npm audit` сообщает о high-уязвимости
-`node-forge` (GHSA-86w9-cpqp-85rv) через Android-инструмент `@devicefarmer/adbkit`.
-Исправленной актуальной версии в проверенном дереве нет; предлагаемый npm
-откат web-ext до 5.1.0 не применяется. Эти dev-зависимости не входят в ZIP
-и не исполняются в расширении. Этот проект использует только lint/build,
-не Android-подключения и не автоматическую подпись. При обновлении web-ext
-нужно повторно проверить `npm audit`.
+Documentation: [webRequest](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webRequest),
+[clipboard](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Interact_with_the_clipboard),
+[temporary installation](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/).
