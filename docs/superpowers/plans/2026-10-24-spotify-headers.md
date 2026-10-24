@@ -1,0 +1,89 @@
+# Spotify Headers Extension Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Создать Firefox-расширение, копирующее два заголовка Spotify в формат авторизации TrackHarbor.
+
+**Architecture:** Manifest V2 с постоянной фоновой страницей. Чистый модуль проверяет URL и форматирует заголовки; контроллер с внедряемыми Firefox API, буфером и таймерами управляет одной операцией. Отдельное окно показывает безопасный результат.
+
+**Tech Stack:** JavaScript ES modules, Firefox WebExtensions, Node.js 22+ и встроенный node:test, web-ext для lint/build.
+
+**Spec:** `docs/superpowers/specs/2026-10-24-spotify-headers-design.md`
+
+## Global Constraints
+
+- Запуск по нажатию на иконку; одна операция за раз.
+- Создавать отдельную активную вкладку `https://open.spotify.com/`; закрывать только её.
+- Перехватывать `https://api-partner.spotify.com/pathfinder/v2/query`; query string допустим.
+- Оба заголовка брать из одного запроса; имена без учёта регистра; `Bearer ` и непустой токен обязательны.
+- Буфер: `authorization: Bearer <токен>\nclient-token: <client-token>`, без JSON.
+- Тайм-аут 60 секунд; успех — сообщение «всё ок», ошибка — безопасная понятная причина.
+- Разрешения: `webRequest`, `clipboardWrite`, только `https://open.spotify.com/*` и `https://api-partner.spotify.com/*`.
+- Не менять запросы, не хранить и не передавать токены, не включать их в логи, URL и сообщения.
+- README на русском: сборка, временная установка, подпись для постоянной установки, использование и ручная проверка.
+
+## Review Focus
+
+- Быстрый запрос сразу после навигации: слушатели должны видеть уже назначенный ID вкладки.
+- Тайм-аут одновременно с копированием: только один итог, успешное копирование не превращается во вторую ошибку.
+- Заголовки в разных запросах: не собирать искусственную пару.
+- Закрытие вкладки во время завершения: не показывать ложную ошибку прерывания.
+- Закрытие окна результата и следующий запуск: старый результат не содержит секретов и не влияет на новую операцию.
+
+---
+
+### Task 1: Разбор запроса и формат буфера
+
+**Files:** создать `package.json`, `.gitignore`, `src/headers.js`, `tests/headers.test.js`.
+
+**Interfaces:**
+- `isTargetRequest(url: string): boolean` — точный origin/path, query string разрешён.
+- `formatHeaders(headers: Array<{name: string, value?: string}>): string | null` — две строки либо null при неполной/невалидной паре.
+
+- [ ] Создать package.json с `type: module`, `test: node --test` и тесты: точный URL и query принимаются; другой origin, suffix пути, HTTP и невалидный URL отклоняются.
+- [ ] Добавить проверки: смешанный регистр имён; пропуск лишних заголовков; отсутствие/пустота каждого значения; неверный Bearer; отсутствие утечки cookies. Для пары A/B проверить строго `authorization: Bearer A\nclient-token: B`. Отклонять CR/LF внутри значений.
+- [ ] Запустить `npm test`; убедиться, что тесты падают из-за отсутствующего модуля.
+- [ ] Реализовать обе функции в `src/headers.js`, без состояния между вызовами; добавить игнорирование node_modules и web-ext-artifacts.
+- [ ] Запустить `npm test`; все тесты должны пройти.
+- [ ] Зафиксировать файлы задачи отдельным коммитом.
+
+### Task 2: Контроллер операции
+
+**Files:** создать `src/controller.js`, `tests/controller.test.js`.
+
+**Interfaces:**
+- Потребляет функции Task 1.
+- `createController({browser, writeClipboard, timers}): {start(): Promise<void>, getResult(): {ok: boolean, message: string} | null}`.
+- `writeClipboard(text): Promise<void>`; `timers.setTimeout(fn, ms)` и `timers.clearTimeout(id)`.
+- Контроллер регистрирует webRequest/tabs слушатели при создании; `start` вызывается browserAction. Обработчики никогда не возвращают изменения запроса.
+
+- [ ] Написать тест со stub API: `tabs.create({url: 'about:blank', active: true})`, сохранение ID, затем `tabs.update(id, {url: 'https://open.spotify.com/'})`; событие внутри update должно быть перехвачено.
+- [ ] Проверить чужую вкладку/URL, две неполные пары из разных запросов, несколько одинаковых событий и повторный start: соответственно нет копирования/завершения и только одна операция.
+- [ ] Проверить успех: clipboard получает точные две строки, окно результата открывается перед удалением вкладки, состояние не содержит токенов; таймер очищен.
+- [ ] Проверить тайм-аут ровно 60000 мс, ошибку создания и навигации, ошибку загрузки main_frame, ошибку целевого запроса, отклонение clipboard, ручное закрытие, ошибку удаления вкладки. Каждый случай даёт безопасное сообщение без исключений/секретов.
+- [ ] Проверить гонки: событие таймера во время копирования не создаёт второй итог; tabs.onRemoved от собственного удаления не даёт прерывание; ошибка windows.create не препятствует удалению и вызывает badge/title fallback; следующий start после завершения работает независимо от окна результата.
+- [ ] Запустить `npm test`; новые тесты должны падать из-за отсутствующего контроллера.
+- [ ] Реализовать контроллер: синхронно занять операцию до первого await; состояния ожидание/завершение; единая идемпотентная процедура завершения. При захвате полной пары сразу остановить таймер. Неполные пары пропускать, безопасную причину тайм-аута выбирать по последнему наблюдению.
+- [ ] Регистрировать onBeforeSendHeaders с `requestHeaders` и фильтром домена/пути; проверять точный URL и tabId внутри обработчика. Сетевые ошибки привязать к созданной вкладке и этапу. Успешный захват не требует ожидания HTTP-ответа.
+- [ ] Хранить только безопасный результат, использовать `browser.runtime.getURL('result.html')` без секретов; ошибка закрытия обновляет результат и badge/title. Неудача показа окна не должна срывать cleanup.
+- [ ] Запустить `npm test`; все тесты должны пройти. Зафиксировать файлы задачи отдельным коммитом.
+
+### Task 3: Firefox-интеграция, упаковка и документация
+
+**Files:** создать `manifest.json`, `background.html`, `src/background.js`, `result.html`, `src/result.js`, `src/result.css`, `icons/spotify-headers.svg`, `tests/manifest.test.js`, `README.md`; обновить `package.json`, создать lockfile.
+
+**Interfaces:**
+- Background импортирует createController и передаёт `navigator.clipboard.writeText` как writeClipboard.
+- Runtime message `{type: 'get-result'}` от страницы расширения получает безопасный getResult; остальные сообщения игнорируются.
+- Страница результата выводит текст через textContent, содержит кнопку закрытия; при отсутствии результата сообщает об отсутствии операции. Обновляет статус, чтобы показать возможную позднюю ошибку закрытия вкладки.
+
+- [ ] Проверить по текущим MDN/web-ext docs поддержку Manifest V2, clipboardWrite фоновой страницы и команды lint/build. Закрепить совместимую версию web-ext в devDependencies.
+- [ ] Добавить failing тест manifest: manifest_version=2, background page persistent, browser_action без default_popup; точный список разрешений; все указанные файлы присутствуют. Проверить отсутствие внешних скриптов и inline JS в HTML.
+- [ ] Запустить `npm test`; убедиться в падении новых проверок.
+- [ ] Создать manifest и минимальные HTML/JS/CSS/SVG, связать иконку с controller.start, runtime сообщения со страницей результата; ошибки границы обрабатывать без вывода секретов. Не вводить content scripts и storage.
+- [ ] Настроить `npm run lint` через web-ext lint, `npm run build` через web-ext build с overwrite-dest. Исключить из пакета tests, docs, node_modules, git, package/lock и README; сохранять весь исполняемый код. Перед сборкой запускать тесты и lint.
+- [ ] Написать README: Node.js 22+, `npm ci`, `npm test`, `npm run lint`, `npm run build`; путь артефакта. Для временной установки — about:debugging, This Firefox, Load Temporary Add-on, manifest.json; после перезапуска Firefox установка исчезает. Для постоянной — подпись через Mozilla AMO (включая unlisted), не обещать установку неподписанного XPI.
+- [ ] Описать вход в Spotify заранее, нажатие иконки, ожидание окна, вставку в авторизацию TrackHarbor; чувствительность буфера, истечение токенов, тайм-аут и возможную необходимость открыть раздел Spotify для появления запроса. Указать отсутствие проверки токена сервером.
+- [ ] Запустить `npm test`, `npm run lint`, `npm run build`; проверить состав ZIP без секретов и файлов разработки.
+- [ ] Если доступен Firefox с пользовательским аккаунтом, вручную проверить реальный успешный захват и вставку в TrackHarbor; иначе явно отметить отсутствие live-проверки. Не выдавать stub-тесты за проверку Spotify.
+- [ ] Провести итоговый review по спецификации, зафиксировать файлы задачи отдельным коммитом и сообщить фактические результаты команд и ограничения.
