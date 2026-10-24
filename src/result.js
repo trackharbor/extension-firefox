@@ -1,10 +1,11 @@
 const statusElement = document.getElementById('status');
 const messageElement = document.getElementById('message');
+const operationId = window.location.hash.slice(1);
 document.getElementById('close').addEventListener('click', () => window.close());
 
 async function refresh() {
   try {
-    const result = await browser.runtime.sendMessage({ type: 'get-result' });
+    const result = await browser.runtime.sendMessage({ type: 'get-result', operationId });
     if (!result) throw new Error('No result');
     statusElement.textContent = result.ok ? 'всё ок' : 'Ошибка';
     statusElement.dataset.ok = String(result.ok);

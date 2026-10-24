@@ -47,6 +47,7 @@ function fixture(overrides = {}) {
       },
     },
     windows: {
+      onRemoved: event(),
       async create(options) {
         calls.order.push('window'); calls.windows.push(options);
         await overrides.window?.(options);
@@ -99,7 +100,7 @@ test('creates blank tab first and captures a request synchronously during naviga
   assert.deepEqual(f.calls.removed, [17]);
   assert.equal(f.scheduled.size, 0);
   assert.equal(f.calls.windows[0].type, 'popup');
-  assert.equal(f.calls.windows[0].url, 'moz-extension://test/result.html');
+  assert.equal(f.calls.windows[0].url, 'moz-extension://test/result.html#1');
   assert.doesNotMatch(JSON.stringify(f.controller.getResult()), /PRIVATE/);
 });
 
@@ -244,4 +245,20 @@ test('result stays pending until cleanup finishes, then exposes a late close err
   removal.resolve(); await flush();
   assert.equal(f.controller.getResult().complete, true);
   safeResult(f, /закрыть вкладку/);
+});
+
+test('old popup retains its own late cleanup error across a new operation', async () => {
+  const removal = deferred();
+  const f = fixture({ remove: async () => { await removal.promise; throw Error('PRIVATE_ERROR'); } });
+  await f.controller.start(); f.request(); await flush();
+  assert.equal(f.controller.getResult('1').complete, false);
+  removal.resolve(); await flush();
+  await f.controller.start();
+  assert.equal(f.controller.getResult(), null);
+  assert.equal(f.controller.getResult('1')?.ok, false);
+  assert.match(f.controller.getResult('1')?.message ?? '', /закрыть вкладку/);
+  assert.equal(f.controller.getResult('1')?.complete, true);
+  assert.equal(f.controller.getResult('999'), null);
+  f.browser.windows.onRemoved.emit(23);
+  assert.equal(f.controller.getResult('1'), null);
 });

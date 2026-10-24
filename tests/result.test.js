@@ -12,11 +12,12 @@ async function render(response) {
   const code = await readFile(new URL('../src/result.js', import.meta.url), 'utf8');
   vm.runInNewContext(code, {
     document: { getElementById: id => elements[id] },
-    browser: { runtime: { sendMessage: async () => {
+    browser: { runtime: { sendMessage: async message => {
       if (response instanceof Error) throw response;
+      if (typeof response === 'function') return response(message);
       return response;
     } } },
-    window: { close() { closed = true; } },
+    window: { location: { hash: '#1' }, close() { closed = true; } },
     setTimeout: fn => callbacks.push(fn),
   });
   await new Promise(setImmediate);
@@ -51,3 +52,14 @@ for (const response of [null, Error('sensitive internal details')]) {
     assert.equal(ui.callbacks.length, 0);
   });
 }
+
+test('polls its own operation when a newer run changes the global result', async () => {
+  const old = { ok: true, message: 'первый результат', complete: false };
+  let current = old;
+  const ui = await render(message => message.operationId === '1' ? old : current);
+  current = { ok: false, message: 'ошибка другой операции', complete: true };
+  old.complete = true;
+  await ui.callbacks[0]();
+  assert.equal(ui.elements.status.textContent, 'всё ок');
+  assert.equal(ui.elements.message.textContent, 'первый результат');
+});

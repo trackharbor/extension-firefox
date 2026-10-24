@@ -15,6 +15,6 @@ browser.browserAction.onClicked.addListener(() => {
 
 browser.runtime.onMessage.addListener((message, sender) => {
   if (message?.type !== 'get-result' || sender.id !== browser.runtime.id ||
-      sender.url !== browser.runtime.getURL('result.html')) return undefined;
-  return Promise.resolve(controller.getResult());
+      sender.url?.split('#')[0] !== browser.runtime.getURL('result.html')) return undefined;
+  return Promise.resolve(controller.getResult(message.operationId));
 });

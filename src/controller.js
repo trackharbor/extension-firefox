@@ -5,7 +5,10 @@ const TIMEOUT_MS = 60_000;
 
 export function createController({ browser, writeClipboard, timers }) {
   let active = null;
-  let result = null;
+  let latest = null;
+  let sequence = 0;
+  const results = new Map();
+  const resultWindows = new Map();
   let observersReady = true;
 
   // UI failures must never prevent closing the tab. Never expose raw errors.
@@ -30,18 +33,22 @@ export function createController({ browser, writeClipboard, timers }) {
         text = null;
       }
     }
-    result = outcome;
+    let result = outcome;
+    operation.result = result;
     await setAction(result.ok ? 'OK' : '!', result.message);
     try {
-      await browser.windows.create({
-        url: browser.runtime.getURL('result.html'),
+      const window = await browser.windows.create({
+        url: `${browser.runtime.getURL('result.html')}#${operation.id}`,
         type: 'popup', width: 440, height: 280,
       });
+      operation.windowId = window.id;
+      resultWindows.set(window.id, operation.id);
     } catch {
       result = {
         ok: false,
         message: `${result.message} Не удалось открыть окно результата; сообщение доступно при наведении на иконку.`,
       };
+      operation.result = result;
       await setAction('!', result.message);
     }
 
@@ -57,18 +64,26 @@ export function createController({ browser, writeClipboard, timers }) {
             ok: false,
             message: `${result.message} Не удалось закрыть вкладку Spotify. Закройте её вручную.`,
           };
+          operation.result = result;
           await setAction('!', result.message);
         }
       }
     }
+    operation.complete = true;
+    if (operation.windowId === null) results.delete(operation.id);
     if (active === operation) active = null;
   }
 
   async function start() {
     if (active !== null) return;
-    const operation = { tabId: null, closed: false, finishing: false, sawRequest: false };
+    const operation = {
+      id: String(++sequence), tabId: null, windowId: null,
+      closed: false, finishing: false, sawRequest: false,
+      result: null, complete: false,
+    };
     active = operation;
-    result = null;
+    latest = operation;
+    results.set(operation.id, operation);
     void setAction('…', 'Ожидание заголовков Spotify (до 60 секунд)…');
     operation.timer = timers.setTimeout(() => {
       const message = operation.sawRequest
@@ -131,9 +146,22 @@ export function createController({ browser, writeClipboard, timers }) {
         void finish(operation, { ok: false, message: 'Вкладка Spotify закрыта до получения заголовков. Операция прервана.' });
       }
     });
+
+    browser.windows.onRemoved.addListener(windowId => {
+      const id = resultWindows.get(windowId);
+      if (id !== undefined) {
+        results.delete(id);
+        resultWindows.delete(windowId);
+      }
+    });
   } catch {
     observersReady = false;
   }
 
-  return { start, getResult: () => result === null ? null : { ...result, complete: active === null } };
+  function getResult(id) {
+    const operation = id === undefined ? latest : results.get(id);
+    return operation?.result ? { ...operation.result, complete: operation.complete } : null;
+  }
+
+  return { start, getResult };
 }
